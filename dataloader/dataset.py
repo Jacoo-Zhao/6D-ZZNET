@@ -12,12 +12,12 @@ from PIL import Image
 from torchvision import utils as vutils
 import pandas as pd
 from pandas import DataFrame
-
+import sys
 import pdb
 import pickle
 from scipy import *
 
-sys.path.append(os.path.dirname(sys.path[0]))
+# sys.path.append(os.path.dirname(sys.path[0]))
 sys.path.append('/cvlabdata2/home/ziyi/6D-Pose/ZZNET')
 from utilis import *
 # from .. import utilis
@@ -99,11 +99,16 @@ class ZZNETDataset(Dataset):
         _rgb_files.sort()
         self.rgb_files.extend(_rgb_files)  # list len=15000
 
-        with open('Data/data_tuple.pickle', "rb") as f:
+        with open('/cvlabdata2/home/ziyi/6D-Pose/ZZNET/Data/data_tuple.pickle', "rb") as f:
             data_tuple = pickle.load(f)
         self.pos_pool = data_tuple['data'][1] # torch.Size([15000, 32])
         self.neg_pool = data_tuple['data'][2] # torch.Size([15000, 32])
         # pdb.set_trace()
+        
+        # for test
+        self.pos_pool = data_tuple['data'][1][0:160,:] # torch.Size([15000, 32])
+        self.neg_pool = data_tuple['data'][2][0:160,:] # torch.Size([15000, 32])
+        self.rgb_files_2=self.rgb_files[0:160]
 
     def __getitem__(self, index):
         """
@@ -209,19 +214,22 @@ class ZZNETDataset(Dataset):
        
         
         #save tuple images
-        q_img_name = str(index) + '-Q-' + str(self.rgb_files[index])[-23:]
-        pos_img_name = str(index) + '-P-' + str(self.rgb_files[pos_img_id])[-23:]
-        neg_img_name = str(index) + '-N-' + str(self.rgb_files[neg_img_id])[-23:]
-        vutils.save_image(self.image, 'Data/img_tuples' + q_img_name)
-        vutils.save_image(self.pos_img, 'Data/img_tuples' + pos_img_name)
-        vutils.save_image(self.neg_img, 'Data/img_tuples' + neg_img_name)
+        if index%100==0:
+            q_img_name = str(index) + '-Q-' + str(self.rgb_files[index])[-23:]
+            pos_img_name = str(index) + '-P-' + str(self.rgb_files[pos_img_id])[-23:]
+            neg_img_name = str(index) + '-N-' + str(self.rgb_files[neg_img_id])[-23:]
+            vutils.save_image(self.image, 'Data/img_tuples/' + q_img_name)
+            vutils.save_image(self.pos_img, 'Data/img_tuples/' + pos_img_name)
+            vutils.save_image(self.neg_img, 'Data/img_tuples/' + neg_img_name)
+    
+        #save tuple WGS64 Position[latitude-longitude-height]
         save_tuple_wgs(index=index, pos_img_id=pos_img_id, neg_img_id=neg_img_id)
         
         return self.image, self.pos_img, self.neg_img, index, pos_img_id, neg_img_id
 
 
     def __len__(self):
-        return len(self.rgb_files)
+        return len(self.rgb_files_2)
 
 
 

@@ -1,2 +1,6 @@
 Data/img_tuples/
 Data/des_pool.npy
+
+*.pyc
+model_zoo/hub/checkpoints/vgg16-397923af.pth
+model_zoo/hub/checkpoints/resnet18-f37072fd.pth

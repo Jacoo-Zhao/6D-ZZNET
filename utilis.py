@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import os
 import argparse
 import torch
@@ -50,7 +52,6 @@ def pickle_reader(filepath):
         data = pickle.load(f)
     pdb.set_trace()
 
-#输入的A,B为numpy.matrix格式
 def EuclideanDistances(A, B):
     BT = B.transpose()
     vecProd = A * BT
@@ -63,19 +64,6 @@ def EuclideanDistances(A, B):
     SqED = sumSqBEx + sumSqAEx - 2*vecProd   
     ED = (SqED.getA())**0.5
     return numpy.matrix(ED)
-
-# quickest-cuda-version-noloop
-def non_loop(test_matrix, train_matrix):
-    num_test = test_matrix.shape[0]
-    num_train = train_matrix.shape[0]
-    dists = np.zeros((num_test, num_train))
-    # because(X - X_train)*(X - X_train) = -2X*X_train + X*X + X_train*X_train, so
-    d1 = -2 * np.dot(test_matrix, train_matrix.T)    # shape (num_test, num_train)
-    d2 = np.sum(np.square(test_matrix), axis=1, keepdims=True)    # shape (num_test, 1)
-    d3 = np.sum(np.square(train_matrix), axis=1)     # shape (num_train, )
-    dists = np.sqrt(d1 + d2 + d3)  # broadcasting
-    print(dists.shape)
-    return dists
 
 def euclidean_dist_cuda(x, y):
     """
@@ -97,7 +85,7 @@ def euclidean_dist_cuda(x, y):
     # dist = torch.addmm(dist, x, y.t(), beta=1, alpha=-2)
     # clamp()函数可以限定dist内元素的最大最小范围，dist最后开方，得到样本之间的距离矩阵
     dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
-    print(dist.shape)
+    # print(dist.shape)
     return dist
  
 def tuple_formation(img_path, pose_path, data_tuple_path, dataset_dir):
@@ -139,7 +127,7 @@ def tuple_formation(img_path, pose_path, data_tuple_path, dataset_dir):
             pickle.dump({'data': data}, f)
     return data
 
-def save_tuple_wgs(index, pos_img_id, neg_img_id, pose_path='Data/poses.csv', save_path='Data/tuple_Tuple.csv'):
+def save_tuple_wgs(index, pos_img_id, neg_img_id, pose_path='Data/poses.csv', save_path='Data/Tuple_WGS.csv'):
     """save (Latitude, Logitude, height)
     Args:
         index: int. index of query image
@@ -181,11 +169,11 @@ if __name__=='__main__':
     # dataset_tuple_initialize('des_pool.npy')
 
     # pdb.set_trace()
-    # data_tuple_path = 'Data/data_tuple.pickle'
-    # pickle_reader(data_tuple_path)
+    data_tuple_path = 'Data/data_tuple.pickle'
+    pickle_reader(data_tuple_path)
     # tuple_formation(img_path='', pose_path='poses/poses.csv', data_tuple_path=data_tuple_path, dataset_dir='', )
     # read_img('/cvlabdata2/home/ziyi/6D-Pose/Dataset/train/images/Echendens-LHS_00000.png')
-    for i in range(10):
-        save_tuple_wgs(index=0, pos_img_id=5701, neg_img_id=10450, posepath='Data/poses.csv')
+    # for i in range(10):
+        # save_tuple_wgs(index=0, pos_img_id=5701, neg_img_id=10450, posepath='Data/poses.csv')
 
     print("Succeed.")

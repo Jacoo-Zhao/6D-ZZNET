@@ -1,7 +1,85 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from utilis import euclidean_dist_cuda
 import pdb
+class zznet_triplet(nn.Module):
+    def __init__(self, margin=5e-1):
+            """
+            Args:
+                margin: margin for triplet loss
+                hardest: If true, loss is considered only hardest triplets.
+                squared: If true, output is the pairwise squared euclidean distance matrix.
+                    If false, output is the pairwise euclidean distance matrix.
+            """
+            super(zznet_triplet, self).__init__()
+            self.margin = margin
+
+    def forward(self, des_q, des_p, des_n, margin): 
+        """"Triplet Loss
+        Args
+            des_q: torch.tensor (i,d)
+            des_p: torch.tensor (j,d)
+            des_n: torch.tensor (k,d)
+            margin: int. scala.
+        Return 
+            loss = dis(des_q, des_p) + margin - dis(des_q, des_n). scala
+        """
+        dis_qp = euclidean_dist_cuda(des_q, des_p)
+        dis_qn = euclidean_dist_cuda(des_q, des_n)
+        triplet_loss = dis_qp + self.margin -dis_qn 
+
+        return triplet_loss
+
+class AccumLoss(object):
+    def __init__(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val
+        self.count += n
+        self.avg = self.sum / self.count
+
+def train_corr_class(train_loader, model, optimizer, beta, fact=None, is_cuda=True, level=0):
+    tr_l = AccumLoss()
+    criterion_class = nn.NLLLoss()
+    
+    for i, (batch_id, inputs) in enumerate(train_loader):
+
+        if is_cuda:
+            inputs = inputs.float().cuda()
+        else:
+            inputs = inputs.float()
+
+        # b = inputs.is_cuda
+        # For clssifier
+        labels = get_labels([train_loader.dataset.inputs_label[int(i)] for i in batch_id], level=level).cuda()
+        batch_size = inputs.shape[0]
+
+        # For corrector
+        targets = [train_loader.dataset.targets[int(i)] for i in batch_id]
+        originals = [train_loader.dataset.inputs_raw[int(i)] for i in batch_id]
+        batch_size = inputs.shape[0]
+
+        des = model(inputs)
+
+        # calculate loss for classifier
+        loss_class = criterion_class(des, labels)
+
+        loss = loss_class
+        optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
+        optimizer.step()
+
+        # update the training loss
+        tr_l.update(loss.cpu().data.numpy() * batch_size, batch_size)
+
+    return tr_l.avg
 
 class HardTripletLoss(nn.Module):
     """Hard/Hardest Triplet Loss
