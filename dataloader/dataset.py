@@ -23,10 +23,10 @@ from utilis import *
 # from .. import utilis
 
 class ZZNETDataset(Dataset):
-    def __init__(self, raw_image=False, grayscale=False, augment=False, root_dir = '/cvlabdata2/home/ziyi/6D-Pose/dataset/train/train'):
-        self.preprocessing(raw_image=raw_image, grayscale=grayscale, augment=augment, root_dir=root_dir)
+    def __init__(self, raw_image=False, grayscale=False, augment=False, batch=True, root_dir = '/cvlabdata2/home/ziyi/6D-Pose/dataset/train/train'):
+        self.preprocessing(raw_image=raw_image, grayscale=grayscale, batch=batch, augment=augment, root_dir=root_dir)
    
-    def preprocessing(self, root_dir, grayscale, augment, raw_image, img_h=480):
+    def preprocessing(self, root_dir, grayscale, augment, raw_image, batch, img_h=480):
         """ 
         Args:
             root_dir: dir for the train_dataset
@@ -35,6 +35,7 @@ class ZZNETDataset(Dataset):
             raw_img: Return raw RGB image w/o any augmentation or normalization for post-processing
             img_height: RGB images are rescaled to this maximum height
         """
+        self.batch = batch
         self.grayscale = grayscale
         self.augment = augment
         self.raw_image = raw_image
@@ -99,13 +100,14 @@ class ZZNETDataset(Dataset):
         _rgb_files.sort()
         self.rgb_files.extend(_rgb_files)  # list len=15000
 
-        with open('/cvlabdata2/home/ziyi/6D-Pose/ZZNET/Data/data_tuple.pickle', "rb") as f:
+        with open('/cvlabdata2/home/ziyi/6D-Pose/ZZNET/Data/GT_tuple_loca_ang.pickle', "rb") as f:
             data_tuple = pickle.load(f)
         self.pos_pool = data_tuple['data'][1] # torch.Size([15000, 32])
         self.neg_pool = data_tuple['data'][2] # torch.Size([15000, 32])
         # pdb.set_trace()
         
-        # for test
+        """ !!!important""" 
+        #for test make model  faster
         self.pos_pool = data_tuple['data'][1][0:160,:] # torch.Size([15000, 32])
         self.neg_pool = data_tuple['data'][2][0:160,:] # torch.Size([15000, 32])
         self.rgb_files_2=self.rgb_files[0:160]
@@ -124,7 +126,6 @@ class ZZNETDataset(Dataset):
         aug_scale_min=2 / 3
         aug_scale_max=3 / 2
         aug_contrast=0.1
-        aug_contrast=0.1
         aug_brightness=0.1
         
         # q_img
@@ -135,7 +136,7 @@ class ZZNETDataset(Dataset):
         pos_imgs = self.pos_pool[index] #torch.Size([32])
         neg_imgs = self.neg_pool[index] #torch.Size([32])
         # id_pos_neg = torch.LongTensor(random.sample(range(pos_imgs.shape[0]), 1))
-        # pos_img_id = torch.index_select(pos_imgs, 0, id_pos_neg).item(
+        # pos_img_id = torch.index_select(pos_imgs, 0, id_pos_neg).item()
         # neg_img_id = torch.index_select(neg_imgs, 0, id_pos_neg).item()
         pos_img_id = pos_imgs[-1]
         neg_img_id = neg_imgs[0]
@@ -182,7 +183,7 @@ class ZZNETDataset(Dataset):
                 cur_image_transform = transforms.Compose([
                     transforms.ToPILImage(),
                     transforms.Resize(int(self.image_height * scale_factor)),
-                    transforms.ColorJitter(brightness=self.aug_brightness, contrast=self.aug_contrast),
+                    transforms.ColorJitter(brightness=aug_brightness, contrast=aug_contrast),
                     transforms.ToTensor(),
                     transforms.Normalize(
                         # EPFL statistics (should generalize well enough)
@@ -204,9 +205,9 @@ class ZZNETDataset(Dataset):
                 t = torch.from_numpy(t).permute(2, 0, 1).float()
                 return t
 
-            self.image = my_rot(image, angle, 1, 'constant')
-            self.pos_img = my_rot(pos_img, angle, 1, 'constant')
-            self.neg_img = my_rot(neg_img, angle, 1, 'constant')
+            self.image = my_rot(self.image, angle, 1, 'constant')
+            self.pos_img = my_rot(self.pos_img, angle, 1, 'constant')
+            self.neg_img = my_rot(self.neg_img, angle, 1, 'constant')
         else:
             self.image = self.image_transform(image)
             self.pos_img = self.image_transform(pos_img)
@@ -214,16 +215,17 @@ class ZZNETDataset(Dataset):
        
         
         #save tuple images
+        tup_img_path = 'Data/img_tuples_loc+ang/'
         if index%100==0:
             q_img_name = str(index) + '-Q-' + str(self.rgb_files[index])[-23:]
             pos_img_name = str(index) + '-P-' + str(self.rgb_files[pos_img_id])[-23:]
             neg_img_name = str(index) + '-N-' + str(self.rgb_files[neg_img_id])[-23:]
-            vutils.save_image(self.image, 'Data/img_tuples/' + q_img_name)
-            vutils.save_image(self.pos_img, 'Data/img_tuples/' + pos_img_name)
-            vutils.save_image(self.neg_img, 'Data/img_tuples/' + neg_img_name)
+            vutils.save_image(self.image, tup_img_path + q_img_name)
+            vutils.save_image(self.pos_img, tup_img_path + pos_img_name)
+            vutils.save_image(self.neg_img, tup_img_path + neg_img_name)
     
         #save tuple WGS64 Position[latitude-longitude-height]
-        save_tuple_wgs(index=index, pos_img_id=pos_img_id, neg_img_id=neg_img_id)
+        save_tuple_wgs(index=index, pos_img_id=pos_img_id, neg_img_id=neg_img_id, save_path='Data/tuple_loc+ang.csv')
         
         return self.image, self.pos_img, self.neg_img, index, pos_img_id, neg_img_id
 

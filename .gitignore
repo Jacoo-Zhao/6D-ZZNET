@@ -1,6 +1,15 @@
-Data/img_tuples/
+Data/img_tuples_loc/
+Data/img_tuples_loc+ang/
 Data/des_pool.npy
+Data/SuperGlue/
+Data/Logs/
 
+Data/SuperGlue/dump/eg-700-P-Echendens-LHS_00700_eg-700-Q-Echendens-LHS_00700_matches.png
+Data/*.pickle
+
+model_zoo
+
+*.png
 *.pyc
 model_zoo/hub/checkpoints/vgg16-397923af.pth
 model_zoo/hub/checkpoints/resnet18-f37072fd.pth

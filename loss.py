@@ -43,44 +43,6 @@ class AccumLoss(object):
         self.sum += val
         self.count += n
         self.avg = self.sum / self.count
-
-def train_corr_class(train_loader, model, optimizer, beta, fact=None, is_cuda=True, level=0):
-    tr_l = AccumLoss()
-    criterion_class = nn.NLLLoss()
-    
-    for i, (batch_id, inputs) in enumerate(train_loader):
-
-        if is_cuda:
-            inputs = inputs.float().cuda()
-        else:
-            inputs = inputs.float()
-
-        # b = inputs.is_cuda
-        # For clssifier
-        labels = get_labels([train_loader.dataset.inputs_label[int(i)] for i in batch_id], level=level).cuda()
-        batch_size = inputs.shape[0]
-
-        # For corrector
-        targets = [train_loader.dataset.targets[int(i)] for i in batch_id]
-        originals = [train_loader.dataset.inputs_raw[int(i)] for i in batch_id]
-        batch_size = inputs.shape[0]
-
-        des = model(inputs)
-
-        # calculate loss for classifier
-        loss_class = criterion_class(des, labels)
-
-        loss = loss_class
-        optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
-        optimizer.step()
-
-        # update the training loss
-        tr_l.update(loss.cpu().data.numpy() * batch_size, batch_size)
-
-    return tr_l.avg
-
 class HardTripletLoss(nn.Module):
     """Hard/Hardest Triplet Loss
     (pytorch implementation of https://omoindrot.github.io/triplet-loss)

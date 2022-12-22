@@ -5,7 +5,6 @@ import argparse
 import torch
 import numpy as np
 import pdb
-import numpy
 import pickle
 from skimage import io
 from skimage import color
@@ -15,6 +14,67 @@ from torchvision import transforms
 import torchvision
 import pandas as pd
 from pandas import DataFrame
+import matplotlib.pyplot as plt
+from random import sample
+from sklearn.manifold import Isomap
+from sklearn.datasets import load_digits
+
+
+def sampling_location_visu(pose_path='Data/poses.csv'):
+    poses = np.loadtxt(pose_path, delimiter=',')
+
+    poses = poses[poses[:,3].argsort()]
+    # Creating dataset
+    # lat = poses[:,1][0:500]
+    # log = poses[:,2][0:500]
+    # hei = poses[:,3][0:500]
+    
+    lat = poses[:,1]
+    log = poses[:,2]
+    hei = poses[:,3]
+    # # data_sample = 200
+    # lat_mini = sample(lat, data_sample)
+    # log_mini = sample(log, data_sample)
+    # hei_mini = sample(hei, data_sample)
+
+    "https://www.geeksforgeeks.org/3d-scatter-plotting-in-python-using-matplotlib/"
+    # Creating figure
+    fig = plt.figure(figsize=(40, 28))
+    ax = plt.axes(projection="3d")
+    
+    # Creating plot
+    ax.scatter3D(log, lat, hei, linewidths=0.01, color="green")
+    ax.set_xlabel('X Label')
+    ax.set_ylabel('Y Label')
+    ax.set_zlabel('Z Label')
+    plt.title("simple 3D scatter plot")
+    plt.savefig('demo.png')
+
+    # fig = plt.figure(figsize=(40, 28))
+    # ax1 = plt.axes(projection="3d")
+    # ax1.scatter3D(log, lat, hei,  color="green")  #绘制散点图
+    # ax1.plot3D(log, lat, hei,'gray')    #绘制空间曲线
+    # plt.savefig('demo2.png')
+
+    # fig = plt.figure(figsize=(80, 56))
+    # ax = plt.axes(projection="3d")
+    # ax.plot(log, lat, hei, label='parametric curve')
+    # ax.legend()
+    # plt.savefig('demo3.png')
+
+    # new a figure and set it into 3d
+    fig = plt.figure(figsize=(80, 56))
+    ax = plt.axes(projection="3d")
+    # set figure information
+    ax.set_title("3D_Curve")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_zlabel("z")
+    # draw the figure, the color is r = read
+    ax.plot(log[0:50], lat[0:50], hei[0:50], c='r')
+    plt.savefig('demo3.png')
+    pdb.set_trace()
+    return 0
 
 def read_files():
     filepath = '/cvlabdata2/home/ziyi/6D-Pose/dataset/train_mini_mini/images'
@@ -45,25 +105,11 @@ def read_img(img_path):
     # new_qImg.save('Data/demo-qImg.png')
     torchvision.utils.save_image(img2_tf, 'Data/demo-qImg-SaveFromTensor.jpg')
 
-
-
 def pickle_reader(filepath):
     with open(filepath, "rb") as f:
         data = pickle.load(f)
     pdb.set_trace()
 
-def EuclideanDistances(A, B):
-    BT = B.transpose()
-    vecProd = A * BT
-    SqA =  A.getA()**2
-    sumSqA = numpy.matrix(numpy.sum(SqA, axis=1))
-    sumSqAEx = numpy.tile(sumSqA.transpose(), (1, vecProd.shape[1]))    
-    SqB = B.getA()**2
-    sumSqB = numpy.sum(SqB, axis=1)
-    sumSqBEx = numpy.tile(sumSqB, (vecProd.shape[0], 1))    
-    SqED = sumSqBEx + sumSqAEx - 2*vecProd   
-    ED = (SqED.getA())**0.5
-    return numpy.matrix(ED)
 
 def euclidean_dist_cuda(x, y):
     """
@@ -72,7 +118,12 @@ def euclidean_dist_cuda(x, y):
         y: pytorch Variable, with shape [n, d]
     Returns:
         dist: pytorch Variable, with shape [m, n]
-    """
+    """    
+    # 判断x是否为tensor类型
+    if not torch.is_tensor(x):
+        x = torch.tensor(x)
+    if not torch.is_tensor(y):
+        y = torch.tensor(y)
     m, n = x.size(0), y.size(0)
     # xx经过pow()方法对每单个数据进行二次方操作后，在axis=1 方向（横向，就是第一列向最后一列的方向）加和，此时xx的shape为(m, 1)，经过expand()方法，扩展n-1次，此时xx的shape为(m, n)
     xx = torch.pow(x, 2).sum(1, keepdim=True).expand(m, n)
@@ -85,10 +136,9 @@ def euclidean_dist_cuda(x, y):
     # dist = torch.addmm(dist, x, y.t(), beta=1, alpha=-2)
     # clamp()函数可以限定dist内元素的最大最小范围，dist最后开方，得到样本之间的距离矩阵
     dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
-    # print(dist.shape)
     return dist
  
-def tuple_formation(img_path, pose_path, data_tuple_path, dataset_dir):
+def tuple_formulate(pose_path, data_tuple_path):
     """
     Formulate a single tuple of a query img
 
@@ -101,9 +151,7 @@ def tuple_formation(img_path, pose_path, data_tuple_path, dataset_dir):
          -- 32 negative images ((15000,1),(15000,32),(15000,32))=(q_img, pos, neg)
     """
 
-    base = '/cvlabdata2/home/ziyi/6D-Pose/dataset/train/train'
-    # dataset_dir = os.path.join(base, dataset_dir)
-    # img_path = os.path.join(base, img_path)
+    base = 'Data'
     pose_path = os.path.join(base, pose_path)
     # read/write file
     try:
@@ -111,11 +159,24 @@ def tuple_formation(img_path, pose_path, data_tuple_path, dataset_dir):
             data = pickle.load(f)
         print('File {} already exists.'.format(data_tuple_path))
     except FileNotFoundError:
-        print('Fild not found, start processing.')
+        print('File not found, start processing.')
         poses = torch.from_numpy(np.loadtxt(pose_path, delimiter=',')) #(15000,7) including index.
-        poses_tsl = poses[:,1:4] 
-        dist = euclidean_dist_cuda(poses_tsl, poses_tsl)
-        _, idx_sort = torch.sort(dist, dim=1, descending=True)
+        poses_loc = poses[:,1:4] 
+        poses_ang = poses[:,4:7]
+        poses_loc_ang = poses[:,1:]
+
+        dist_loc = euclidean_dist_cuda(poses_loc, poses_loc)
+        sim_ang = torch.zeros(poses_ang.shape[0], poses_ang.shape[0])
+
+        for i in range(poses_ang.shape[0]):
+            for j in range(poses_ang.shape[0]):
+                sim_ang[i,j]=torch.cosine_similarity(poses_ang[i].unsqueeze(0),poses_ang[j].unsqueeze(0))  
+        
+        # dist_geddestic = 
+        _, idx_sort_loc = torch.sort(dist_loc, dim=1, descending=True)
+        _, idx_sort_ang = torch.sort(sim_ang, dim=1, descending=True)
+
+        pdb.set_trace()
         q_img = torch.arange(0, 15000).reshape((15000, 1))
         pos_pool = idx_sort[:, -33:-1]
         neg_pool = idx_sort[:,0:32]
@@ -127,7 +188,7 @@ def tuple_formation(img_path, pose_path, data_tuple_path, dataset_dir):
             pickle.dump({'data': data}, f)
     return data
 
-def save_tuple_wgs(index, pos_img_id, neg_img_id, pose_path='Data/poses.csv', save_path='Data/Tuple_WGS.csv'):
+def save_tuple_wgs(index, pos_img_id, neg_img_id, pose_path='Data/poses.csv', save_path='Data/Tuple_loc+ang.csv'):
     """save (Latitude, Logitude, height)
     Args:
         index: int. index of query image
@@ -138,42 +199,50 @@ def save_tuple_wgs(index, pos_img_id, neg_img_id, pose_path='Data/poses.csv', sa
     Function:
         write wgs position to 'Data/Tuple_Log.csv'
     """ 
-    columns=['q_lat','q_log','q_heg','p_lat','p_log', 'p_heg', 'neg_lat', 'neg_log', 'neg_heg']
+    columns=['q_id', 'p_id', 'n_id', 'q_lat','q_log','q_heg','p_lat','p_log', 'p_heg', 'neg_lat', 'neg_log', 'neg_heg']
+    ids= [index, pos_img_id, neg_img_id]
     try:
         df = pd.read_csv(save_path, header=0) # 第一行  
     except FileNotFoundError:
         df = pd.DataFrame(columns=columns)
     # save (Latitude, Logitude, height)
     index = index
-    pos_img_id = pos_img_id
-    neg_img_id = neg_img_id
+    pos_img_id = pos_img_id.item()
+    neg_img_id = neg_img_id.item()
     poses = torch.from_numpy(np.loadtxt(pose_path, delimiter=',')) #(15000,7)
     q=poses[index][1:4].numpy().tolist()
     p = poses[pos_img_id][1:4].numpy().tolist()
     n = poses[neg_img_id][1:4].numpy().tolist() 
-    data = [q+p+n] 
+    data = [ids+q+p+n] 
     q_p_n_wgs = pd.DataFrame(data=data, columns=columns)
     df=pd.concat([df, q_p_n_wgs], ignore_index=True)
     DataFrame(df).to_csv(save_path, index=False, header=True)
 
+def geodesic_dis(x=np.random.randint(1, 10, (2,3))):
+    # X, _ = load_digits(return_X_y=True)
+    # data = np.load("samples_data.npy")
+    arr = np.add(np.ones((10,8)), np.arange(8)).astype(int).T
+    embedding  = Isomap(n_components=2,n_neighbors=5,path_method="auto")
+    data_2d = embedding .fit_transform(arr)
+    geo_distance_matrix = embedding.dist_matrix_ # 测地距离矩阵，shape=[n_sample,n_sample]
+    pdb.set_trace()
 
 if __name__=='__main__':
     torch.cuda.set_device(0 if torch.cuda.device_count()==1 else 3 ) 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--echo',default="Processing!", type=str, help ='echo')
+    parser.add_argument('--echo',default="Processing...", type=str, help ='echo')
     args = parser.parse_args()
     print(args.echo)
 
-    # eg_a = torch.randn(15000,4096).cuda()
-    # eg_b = torch.randn(15000,4096).cuda()
-    # dataset_tuple_initialize('des_pool.npy')
-
-    # pdb.set_trace()
-    data_tuple_path = 'Data/data_tuple.pickle'
-    pickle_reader(data_tuple_path)
-    # tuple_formation(img_path='', pose_path='poses/poses.csv', data_tuple_path=data_tuple_path, dataset_dir='', )
+    data_tuple_path = 'Data/Tuple_loc_ang(cos_sim).pickle'
+    tuple_formulate(pose_path='poses.csv', data_tuple_path=data_tuple_path,)
+   
     # read_img('/cvlabdata2/home/ziyi/6D-Pose/Dataset/train/images/Echendens-LHS_00000.png')
+    
     # for i in range(10):
         # save_tuple_wgs(index=0, pos_img_id=5701, neg_img_id=10450, posepath='Data/poses.csv')
 
-    print("Succeed.")
+    # sampling_location_visu()
+    # arr = np.add(np.ones((10,8)), np.arange(8)).astype(int).T
+
+    print("Succeed!")

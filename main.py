@@ -11,23 +11,24 @@ from models.netvlad_v1 import NetVLAD, EmbedNet
 from loss import HardTripletLoss, AccumLoss, zznet_triplet
 from torchvision.models import resnet18
 from tqdm import tqdm
-from des_extraction import do_match
+from des_extr import match
 
 import pdb
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 torch.cuda.set_device(0 if torch.cuda.device_count()==1 else 1 ) 
+
 print('Current GPU Device: {}'.format(torch.cuda.current_device()))
 is_cuda = torch.cuda.is_available()
 
 # 1. Data
 batch_size = 32
 dataset_dir = '/cvlabdata2/home/ziyi/6D-Pose/Dataset/train/train'
-train_dataset = ZZNETDataset(raw_image=True, grayscale=False, augment=False, root_dir=dataset_dir)
+train_dataset = ZZNETDataset(raw_image=False, grayscale=False, augment=True, root_dir=dataset_dir)
 train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=False, num_workers=1)
 
-
+pdb.set_trace()
 # 2. Model
 def model_raw():
     """ Inherited from pytorch_NetVlad https://github.com/lyakaap/NetVLAD-pytorch
