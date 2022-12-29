@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 from random import sample
 from sklearn.manifold import Isomap
 from sklearn.datasets import load_digits
+from progress.bar import *
 
 
 def sampling_location_visu(pose_path='Data/poses.csv'):
@@ -152,7 +153,11 @@ def tuple_formulate(pose_path, data_tuple_path):
     """
 
     base = 'Data'
-    pose_path = os.path.join(base, pose_path)
+    pose_path_new = []
+    pose_path = ['poses.csv', 'poses_synth-real-matching.csv', 'poses_synth-real-matching.csv']
+    for  i in pose_path:
+        pose_path_new.append(os.path.join(base, i))
+
     # read/write file
     try:
         with open(data_tuple_path, "rb") as f:
@@ -160,32 +165,47 @@ def tuple_formulate(pose_path, data_tuple_path):
         print('File {} already exists.'.format(data_tuple_path))
     except FileNotFoundError:
         print('File not found, start processing.')
-        poses = torch.from_numpy(np.loadtxt(pose_path, delimiter=',')) #(15000,7) including index.
-        poses_loc = poses[:,1:4] 
-        poses_ang = poses[:,4:7]
+        # pp = {'p1':[], 'p2':[], 'p3':[]}
+        # for i in poses_path_new:
+            # pp[i] = torch.from_numpy(np.loadtxt(i, delimiter=',')) #(15000,7) including index.
+        pp0 = torch.from_numpy(np.loadtxt(pose_path_new[0], delimiter=','))
+        pp1 = torch.from_numpy(np.loadtxt(pose_path_new[1], delimiter=','))
+        pp2 = torch.from_numpy(np.loadtxt(pose_path_new[2], delimiter=','))
+
+        poses = torch.cat((pp0, pp1, pp2),dim=0)
+        # pdb.set_trace()
+
+        poses_loc = poses[:,1:4] # n*3
+        poses_ang = poses[:,4:7] # n*3
         poses_loc_ang = poses[:,1:]
 
         dist_loc = euclidean_dist_cuda(poses_loc, poses_loc)
-        sim_ang = torch.zeros(poses_ang.shape[0], poses_ang.shape[0])
+        dis_ang = euclidean_dist_cuda(poses_ang, poses_ang)
 
-        for i in range(poses_ang.shape[0]):
-            for j in range(poses_ang.shape[0]):
-                sim_ang[i,j]=torch.cosine_similarity(poses_ang[i].unsqueeze(0),poses_ang[j].unsqueeze(0))  
-        
-        # dist_geddestic = 
-        _, idx_sort_loc = torch.sort(dist_loc, dim=1, descending=True)
-        _, idx_sort_ang = torch.sort(sim_ang, dim=1, descending=True)
+        dis = dist_loc + 2e0*dis_ang
 
-        pdb.set_trace()
-        q_img = torch.arange(0, 15000).reshape((15000, 1))
+        # sim_ang = torch.zeros(poses_ang.shape[0], poses_ang.shape[0])
+        # with IncrementalBar('Processing', max=poses_ang.shape[0]) as bar:
+        #     for i in range(poses_ang.shape[0]):
+        #         for j in range(poses_ang.shape[0]):
+        #             sim_ang[i,j]=torch.cosine_similarity(poses_ang[i].unsqueeze(0),poses_ang[j].unsqueeze(0))  
+        #         bar.next()
+        #     bar.finish()
+
+        # _, idx_sort_loc = torch.sort(dist_loc, dim=1, descending=True)
+        # _, idx_sort_ang = torch.sort(sim_ang, dim=1, descending=True)
+        _, idx_sort = torch.sort(dis, dim=1, descending=True)
+
+        # pdb.set_trace()
+        q_img = torch.arange(0, 15000+1197+1197).reshape((15000+1197+1197, 1))
         pos_pool = idx_sort[:, -33:-1]
         neg_pool = idx_sort[:,0:32]
         x = torch.cat((q_img, pos_pool, neg_pool), dim=1)
-        pdb.set_trace()
         data = (x[:,0],x[:,1:33],x[:,33:65])
 
         with open(data_tuple_path, 'wb') as f:
             pickle.dump({'data': data}, f)
+        print('Tuple file saved in: {}'.format(data_tuple_path))
     return data
 
 def save_tuple_wgs(index, pos_img_id, neg_img_id, pose_path='Data/poses.csv', save_path='Data/Tuple_loc+ang.csv'):
@@ -227,6 +247,22 @@ def geodesic_dis(x=np.random.randint(1, 10, (2,3))):
     geo_distance_matrix = embedding.dist_matrix_ # 测地距离矩阵，shape=[n_sample,n_sample]
     pdb.set_trace()
 
+# def rotation_sim(deta):
+#     """ 
+#     Args:
+#         x: m*d,
+#         y: n*d,
+#     Return: 
+#         y: float, m*n,
+#     """
+
+#         if deta<=180:
+#             y = deta/180
+#         else:
+#             y = (dets-180)/180
+        
+#     return y
+
 if __name__=='__main__':
     torch.cuda.set_device(0 if torch.cuda.device_count()==1 else 3 ) 
     parser = argparse.ArgumentParser()
@@ -234,7 +270,7 @@ if __name__=='__main__':
     args = parser.parse_args()
     print(args.echo)
 
-    data_tuple_path = 'Data/Tuple_loc_ang(cos_sim).pickle'
+    data_tuple_path = 'Data/Tuple_loc_ang(L2Norm).pickle'
     tuple_formulate(pose_path='poses.csv', data_tuple_path=data_tuple_path,)
    
     # read_img('/cvlabdata2/home/ziyi/6D-Pose/Dataset/train/images/Echendens-LHS_00000.png')
